@@ -10,9 +10,7 @@ static char *xstrdup(const char *s) {
     size_t n = strlen(s) + 1; char *p = (char *)malloc(n); memcpy(p, s, n); return p;
 }
 
-/* ================================================================== */
-/*  1. HASH TABLE  (djb2 + separate chaining + resize at load 0.75)    */
-/* ================================================================== */
+
 static unsigned long djb2(const char *s) {
     unsigned long h = 5381; int c;
     while ((c = (unsigned char)*s++)) h = ((h << 5) + h) + c;
@@ -87,9 +85,7 @@ static void il_push(IntList *l, int v) {
 }
 static void il_free(void *p) { IntList *l = (IntList *)p; free(l->a); free(l); }
 
-/* ================================================================== */
-/*  2. SLIDING WINDOW (circular buffer of recent event times)          */
-/* ================================================================== */
+
 static void ring_push(TimeRing *r, long ts, int port) {
     r->ts[r->head] = ts; r->port[r->head] = port;
     r->head = (r->head + 1) % RING;
@@ -97,10 +93,10 @@ static void ring_push(TimeRing *r, long ts, int port) {
 }
 static void ring_clear(TimeRing *r) { r->n = 0; r->head = 0; }
 
-/* i-th newest entry */
+
 static int ring_at(const TimeRing *r, int i) { return (r->head - 1 - i + 2 * RING) % RING; }
 
-/* how many events happened in the last `win` seconds (newest first, early exit) */
+
 static int ring_count(const TimeRing *r, long now, int win) {
     int c = 0;
     for (int i = 0; i < r->n; i++) {
@@ -110,7 +106,6 @@ static int ring_count(const TimeRing *r, long now, int win) {
     return c;
 }
 
-/* how many DISTINCT ports in the last `win` seconds */
 static int ring_distinct_ports(const TimeRing *r, long now, int win) {
     int seen[RING], d = 0;
     for (int i = 0; i < r->n; i++) {
@@ -123,9 +118,7 @@ static int ring_distinct_ports(const TimeRing *r, long now, int win) {
     return d;
 }
 
-/* ================================================================== */
-/*  3. ENGINE LIFECYCLE                                                */
-/* ================================================================== */
+
 Engine *engine_create(void) {
     Engine *e = (Engine *)calloc(1, sizeof *e);
     e->cfg.brute_thresh   = 5;   e->cfg.brute_win    = 60;
@@ -173,9 +166,7 @@ static void index_add(HashTable *t, const char *key, int idx) {
     il_push(l, idx);
 }
 
-/* ================================================================== */
-/*  4. DETECTION RULES                                                 */
-/* ================================================================== */
+
 const char *event_name(EventType t) {
     static const char *n[] = { "LOGIN_FAIL", "LOGIN_OK", "PORT_PROBE", "ACCESS_DENIED", "UNKNOWN" };
     return n[t];
@@ -197,18 +188,18 @@ static void raise_alert(Engine *e, IPProfile *p, ThreatType type,
         e->alerts = (Alert *)realloc(e->alerts, e->alertcap * sizeof(Alert));
     }
     Alert *a = &e->alerts[e->nalerts];
-    a->id = ++e->nalerts;                      /* 1,2,3.. => sorted by id */
+    a->id = ++e->nalerts;                     
     a->type = type; a->ts = ev->ts; a->event_count = count;
     scopy(a->ip, ev->ip); scopy(a->user, ev->user); scopy(a->target, ev->target);
-    a->severity = base + (p->alerts > 0 ? 1 : 0);   /* repeat-offender bonus */
+    a->severity = base + (p->alerts > 0 ? 1 : 0);   
     if (a->severity > 10) a->severity = 10;
     p->alerts++;
-    p->threat_count[type]++;      /* first time 0->1, then 2, 3, ... */
+    p->threat_count[type]++;      
     e->threat_total[type]++;
     va_list ap; va_start(ap, fmt);
     vsnprintf(a->desc, sizeof a->desc, fmt, ap);
     va_end(ap);
-    if (e->on_alert) e->on_alert(a, e->on_alert_ctx);   /* real-time notify */
+    if (e->on_alert) e->on_alert(a, e->on_alert_ctx);   
 }
 
 static void analyze(Engine *e, const LogEvent *ev, IPProfile *p) {
@@ -221,7 +212,7 @@ static void analyze(Engine *e, const LogEvent *ev, IPProfile *p) {
                 "%d failed logins from %s within %ds (last user: %s)",
                 c->brute_thresh, ev->ip, c->brute_win, ev->user);
             p->last_brute = ev->ts;
-            ring_clear(&p->fail_ring);          /* avoid duplicate alerts */
+            ring_clear(&p->fail_ring);          
         }
         break;
     case EV_LOGIN_OK:
@@ -257,15 +248,14 @@ static void analyze(Engine *e, const LogEvent *ev, IPProfile *p) {
     }
 }
 
-/* ================================================================== */
-/*  5. INGESTION                                                       */
-/* ================================================================== */
+
+
 int engine_ingest(Engine *e, LogEvent ev) {
     if (e->nlogs == e->logcap) {
         e->logcap = e->logcap ? e->logcap * 2 : 64;
         e->logs = (LogEvent *)realloc(e->logs, e->logcap * sizeof(LogEvent));
     }
-    /* live events must stay time-ordered (windows + binary search rely on it) */
+    
     if (e->nlogs > 0 && ev.ts < e->logs[e->nlogs - 1].ts) {
         ev.ts = e->logs[e->nlogs - 1].ts;
         e->late_events++;
@@ -300,7 +290,7 @@ int engine_ingest(Engine *e, LogEvent ev) {
     return idx;
 }
 
-/* CSV line:  timestamp,ip,user,event,target,port   ("-" for empty) */
+
 static int parse_line(const char *line, LogEvent *ev) {
     char evs[32]; memset(ev, 0, sizeof *ev);
     if (sscanf(line, "%ld,%63[^,],%63[^,],%31[^,],%63[^,],%d",
@@ -333,14 +323,13 @@ int engine_load_file(Engine *e, const char *path) {
         tmp[n++] = ev;
     }
     fclose(f);
-    qsort(tmp, n, sizeof *tmp, cmp_ts);          /* logs may be out of order */
+    qsort(tmp, n, sizeof *tmp, cmp_ts);         
     for (int i = 0; i < n; i++) engine_ingest(e, tmp[i]);
     free(tmp);
     if (bad) fprintf(stderr, "warning: skipped %d malformed line(s)\n", bad);
     return n;
 }
 
-/* ---- real-time interface ---- */
 void engine_set_alert_callback(Engine *e, AlertCallback cb, void *ctx) {
     e->on_alert = cb; e->on_alert_ctx = ctx;
 }
@@ -349,7 +338,7 @@ int engine_ingest_line(Engine *e, const char *line) {
     char buf[512]; LogEvent ev;
     while (*line == ' ' || *line == '\t') line++;
     if (*line == 0 || *line == '#' || *line == '\n' || *line == '\r') return -1;
-    if (strncmp(line, "now,", 4) == 0) {          /* stamp with current time */
+    if (strncmp(line, "now,", 4) == 0) {         
         snprintf(buf, sizeof buf, "%ld,%s", (long)time(NULL), line + 4);
         line = buf;
     }
@@ -358,14 +347,11 @@ int engine_ingest_line(Engine *e, const char *line) {
     return 1;
 }
 
-/* ================================================================== */
-/*  6. SEARCHING                                                       */
-/* ================================================================== */
+
 const IntList *search_by_ip(Engine *e, const char *ip)         { return (const IntList *)ht_get(e->ip_index, ip); }
 const IntList *search_by_user(Engine *e, const char *u)        { return (const IntList *)ht_get(e->user_index, u); }
 const IntList *search_by_target(Engine *e, const char *t)      { return (const IntList *)ht_get(e->target_index, t); }
 
-/* binary search: alert ids are strictly increasing in the array */
 const Alert *find_alert(Engine *e, int id) {
     int lo = 0, hi = e->nalerts - 1;
     while (lo <= hi) {
@@ -376,7 +362,7 @@ const Alert *find_alert(Engine *e, int id) {
     return NULL;
 }
 
-/* first index with logs[i].ts >= t */
+
 static int lower_bound_ts(Engine *e, long t) {
     int lo = 0, hi = e->nlogs;
     while (lo < hi) {
@@ -386,7 +372,6 @@ static int lower_bound_ts(Engine *e, long t) {
     return lo;
 }
 
-/* events with from <= ts <= to are logs[*lo .. *lo+count-1]; returns count */
 int search_time_range(Engine *e, long from, long to, int *lo) {
     int a = lower_bound_ts(e, from);
     int b = lower_bound_ts(e, to + 1);
@@ -394,9 +379,7 @@ int search_time_range(Engine *e, long from, long to, int *lo) {
     return b > a ? b - a : 0;
 }
 
-/* ================================================================== */
-/*  7. CORRELATION (session grouping by gap)                           */
-/* ================================================================== */
+
 typedef struct { Engine *e; int by_target, min_events, groups; } CorrCtx;
 
 static void corr_cb(const char *key, void *val, void *vctx) {
@@ -405,7 +388,7 @@ static void corr_cb(const char *key, void *val, void *vctx) {
     long gap = c->e->cfg.session_gap;
     int i = 0;
     while (i < l->n) {
-        int j = i;                       /* extend session while idle gap <= gap */
+        int j = i;                       
         while (j + 1 < l->n && L[l->a[j + 1]].ts - L[l->a[j]].ts <= gap) j++;
         int cnt = j - i + 1;
         if (cnt >= c->min_events) {
@@ -437,9 +420,7 @@ int engine_correlate(Engine *e, int by_target, int min_events) {
     return c.groups;
 }
 
-/* ================================================================== */
-/*  8. PRINTING                                                        */
-/* ================================================================== */
+
 void print_event(const LogEvent *ev) {
     printf("  t=%-8ld %-15s user=%-10s %-13s target=%-10s port=%d\n",
            ev->ts, ev->ip, ev->user, event_name(ev->type), ev->target, ev->port);
