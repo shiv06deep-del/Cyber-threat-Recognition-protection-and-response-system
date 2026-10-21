@@ -1,6 +1,6 @@
 #ifndef _WIN32
 #ifndef _POSIX_C_SOURCE
-#define _POSIX_C_SOURCE 199309L      /* for nanosleep under -std=c99 */
+#define _POSIX_C_SOURCE 199309L     
 #endif
 #endif
 
@@ -23,9 +23,7 @@ static void sleep_ms(int ms) {
 }
 #endif
 
-/* ------------------------------------------------------------------ */
-/*  helpers                                                            */
-/* ------------------------------------------------------------------ */
+
 static void ask(const char *prompt, char *buf, size_t n) {
     printf("%s", prompt); fflush(stdout);
     if (!fgets(buf, (int)n, stdin)) { buf[0] = 0; return; }
@@ -38,7 +36,6 @@ static void show_events(Engine *e, const IntList *l, const char *what) {
     for (int i = 0; i < l->n; i++) print_event(&e->logs[l->a[i]]);
 }
 
-/* REAL-TIME ALERT: engine calls this the instant a rule fires */
 static void on_alert(const Alert *a, void *ctx) {
     (void)ctx;
     printf("\n  >>> REAL-TIME ALERT <<<\n");
@@ -47,7 +44,7 @@ static void on_alert(const Alert *a, void *ctx) {
     fflush(stdout);
 }
 
-/* feed one live event (timestamp "now") and show it */
+
 static void feed(Engine *e, const char *line, int delay_ms) {
     printf("  <- %s\n", line);
     fflush(stdout);
@@ -55,9 +52,7 @@ static void feed(Engine *e, const char *line, int delay_ms) {
     if (delay_ms > 0) sleep_ms(delay_ms);
 }
 
-/* ------------------------------------------------------------------ */
-/*  live attack simulation                                             */
-/* ------------------------------------------------------------------ */
+
 static void simulate(Engine *e) {
     char line[128];
     printf("  --- simulating live traffic (alerts appear as they happen) ---\n");
@@ -78,9 +73,7 @@ static void simulate(Engine *e) {
     printf("  --- simulation finished ---\n");
 }
 
-/* ------------------------------------------------------------------ */
-/*  follow a log file as it grows (like tail -f)                       */
-/* ------------------------------------------------------------------ */
+
 static volatile sig_atomic_t stop_flag = 0;
 static void on_sigint(int sig) { (void)sig; stop_flag = 1; }
 
@@ -99,19 +92,19 @@ static void follow_file(Engine *e, const char *path, int from_start) {
     while (!stop_flag) {
         if (fgets(line, sizeof line, f)) {
             size_t n = strlen(line);
-            if (alen + n >= sizeof acc) { alen = 0; continue; }   /* drop absurd line */
+            if (alen + n >= sizeof acc) { alen = 0; continue; }   
             memcpy(acc + alen, line, n); alen += n; acc[alen] = 0;
-            if (acc[alen - 1] == '\n') {                          /* complete line */
+            if (acc[alen - 1] == '\n') {                          
                 if (acc[0] != '\n' && acc[0] != '\r' && acc[0] != '#') {
-                    printf("  <- %s", acc); fflush(stdout);       /* show event first */
+                    printf("  <- %s", acc); fflush(stdout);      
                 }
-                int r = engine_ingest_line(e, acc);               /* alert prints here */
+                int r = engine_ingest_line(e, acc);               
                 if (r == 1)      processed++;
                 else if (r == 0) printf("  (malformed line skipped)\n");
                 alen = 0;
             }
         } else {
-            clearerr(f);                  /* EOF: wait for the writer */
+            clearerr(f);                
             sleep_ms(300);
         }
     }
@@ -120,18 +113,16 @@ static void follow_file(Engine *e, const char *path, int from_start) {
     printf("\n  stopped; %ld live event(s) processed\n", processed);
 }
 
-/* ------------------------------------------------------------------ */
-/*  main                                                               */
-/* ------------------------------------------------------------------ */
+
 int main(int argc, char **argv) {
     Engine *e = engine_create();
 
-    if (argc > 1) {                       /* optional history file */
+    if (argc > 1) {                       
         int n = engine_load_file(e, argv[1]);
         if (n < 0) fprintf(stderr, "cannot open %s (starting empty)\n", argv[1]);
         else printf("Loaded %d historical events from %s -> %d alert(s)\n", n, argv[1], e->nalerts);
     }
-    engine_set_alert_callback(e, on_alert, NULL);   /* from now on: real-time */
+    engine_set_alert_callback(e, on_alert, NULL);   
 
     char buf[128];
     for (;;) {
