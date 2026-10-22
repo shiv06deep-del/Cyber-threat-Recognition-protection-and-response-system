@@ -1,100 +1,101 @@
-#include<iostream>
-#include<string>
+#include <iostream>
+#include <string>
+#include <algorithm>
+#include <cctype>
+
 using namespace std;
-class Threat{
-    private:
-        string threatName;
-        string classification;
-        int likelihood;
-        int severity;
-        int impact;
-        int frequency;
-        double riskScore;
-    public:
-       Threat(const char* threatName, int frequency){
-        this->threatName = threatName;
-        this->frequency = frequency;
-       }
-       // Setting factors for different types of threats 
-       void AnalysingFactors(){
-            if (strcmp(name, "SQL Injection") == 0)
-            {
-                severity = 9;
-                likelihood = 8;
-                impact = 9;
-            }
 
-        else if (strcmp(name, "Phishing") == 0)
-            {
-                severity = 7;
-                likelihood = 8;
-                impact = 6;
-            }
+class Threat {
+private:
+    string threatName;
+    string classification;
+    int likelihood;
+    int severity;
+    int impact;
+    int frequency;
+    double riskScore;
 
-        else if (strcmp(name, "Port Scan") == 0)
-            {
-                severity = 4;
-                likelihood = 5;
-                impact = 3;
-            }
+public:
+    Threat(const string& name = "", int freq = 1)
+        : threatName(name), classification("LOW"),
+          likelihood(5), severity(5), impact(5),
+          frequency(max(1, freq)), riskScore(0.0) {}
 
-        else if (strcmp(name, "DDoS") == 0)
-            {
-                severity = 9;
-                likelihood = 7;
-                impact = 9;
-            }
+    void analyseFactors() {
 
-        else if (strcmp(name, "Malware") == 0)
-            {
-                severity = 9;
-                likelihood = 7;
-                impact = 10;
-            }
+        // 1. Brute Force
+        if (threatName == "Brute Force") {
+            severity = 8;
+            likelihood = 8;
+            impact = 8;
+        }
 
-        else if (strcmp(name, "Brute Force") == 0)
-            {
-                severity = 7;
-                likelihood = 7;
-                impact = 7;
-            }
+        // 2. Port Scan
+        else if (threatName == "Port Scan") {
+            severity = 4;
+            likelihood = 5;
+            impact = 4;
+        }
 
+        // 3. Unauthorized Access
+        else if (threatName == "Unauthorized Access") {
+            severity = 9;
+            likelihood = 8;
+            impact = 9;
+        }
+
+        // 4. Account Compromise
+        else if (threatName == "Account Compromise") {
+            severity = 10;
+            likelihood = 9;
+            impact = 10;
+        }
+
+        // Default values for unknown threats
+        else {
+            severity = 5;
+            likelihood = 5;
+            impact = 5;
+        }
+    }
+
+    void calculateScore() {
+        // Equal-weight risk score
+        riskScore = (likelihood + severity + impact) / 3.0;
+    }
+
+    void classifyThreat() {
+        if (riskScore >= 7.0)
+            classification = "HIGH";
+        else if (riskScore >= 4.0)
+            classification = "MEDIUM";
         else
-            {
-                severity = 5;
-                likelihood = 5;
-                impact = 5;
-            }
+            classification = "LOW";
+    }
 
-       }
-       // calclulating risk score
-       void calculateScore(){
-        riskScore = ( likelihood + frequency + impact + severity ) / 4.0;
-       }
+    void displayThreatAnalysis() const {
+        cout << "Threat: " << threatName
+             << " | Likelihood: " << likelihood
+             << " | Severity: " << severity
+             << " | Impact: " << impact
+             << " | Frequency: " << frequency
+             << " | Risk score: " << riskScore
+             << " | Classification: " << classification << '\n';
+    }
 
-       void displayThreatAnalysis(){
-        cout << "Threat Name : " << threatName << endl;
-        cout << "Likelihood : " << likelihood << endl;
-        cout << "Severity : " << severity << endl;
-        cout << "Impact : " << impact << endl;
-        cout << "Risk Score Determined : " << riskScore << endl;
-       }
-// Classification of threat on basis of score
-       void classifyThreat(){
-            if (riskScore >= 7)
-                {
-                    strcpy(classification, "HIGH");
-                }
+    string getThreatName() const {
+        return threatName;
+    }
 
-            else if (riskScore >= 4)
-                {
-                    strcpy(classification, "MEDIUM");
-                }
+    string getClassification() const {
+        return classification;
+    }
 
-            else
-                {
-                    strcpy(classification, "LOW");
-                }
-       }
+    double getRiskScore() const {
+        return riskScore;
+    }
 
-}
+    int getFrequency() const {
+        return frequency;
+    }
+};
