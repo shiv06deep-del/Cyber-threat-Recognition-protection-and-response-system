@@ -31,8 +31,16 @@ typedef struct {
     char description[MAX_TEXT];
 } Threat;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 const char *severity_to_string(Severity severity);
 const char *threat_type_to_string(ThreatType type);
 void print_threat(const Threat *threat);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
