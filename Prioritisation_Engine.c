@@ -1,31 +1,63 @@
 #include <stdio.h>
 #include <string.h>
+#include "PrioritisationEngine.h"
 
-#define MAX 100
+void initPriorityQueue(PriorityQueue *pq) {
+    pq->size = 0;
+}
 
-typedef struct {
-    char threatName[50];
-    float riskScore;
-    char classification[10];
-} ThreatData;
-
-typedef struct {
-    ThreatData heap[MAX];
-    int size;
-} PriorityQueue;
+void initMaxHeap(MaxHeap *h) {
+    h->size = 0;
+}
 
 int getPriority(const char classification[]) {
-    if (strcmp(classification, "HIGH") == 0) return 3;
-    if (strcmp(classification, "MEDIUM") == 0) return 2;
+    if (strcmp(classification, "CRITICAL") == 0)
+        return 4;
+
+    if (strcmp(classification, "HIGH") == 0)
+        return 3;
+
+    if (strcmp(classification, "MEDIUM") == 0)
+        return 2;
+
     return 1;
 }
 
 int higherPriority(ThreatData a, ThreatData b) {
-    int pa = getPriority(a.classification);
-    int pb = getPriority(b.classification);
+    int priorityA = getPriority(a.classification);
+    int priorityB = getPriority(b.classification);
 
-    if (pa != pb) return pa > pb;
+    if (priorityA != priorityB)
+        return priorityA > priorityB;
+
     return a.riskScore > b.riskScore;
+}
+
+void insertPriorityQueue(PriorityQueue *pq, ThreatData threat) {
+    if (pq->size >= MAX)
+        return;
+
+    int i = pq->size;
+
+    while (i > 0 && higherPriority(threat, pq->items[i - 1])) {
+        pq->items[i] = pq->items[i - 1];
+        i--;
+    }
+
+    pq->items[i] = threat;
+    pq->size++;
+}
+
+void displayPriorityQueue(PriorityQueue *pq) {
+    printf("\n========== PRIORITY QUEUE ==========\n");
+
+    for (int i = 0; i < pq->size; i++) {
+        printf("%d. %-25s Risk Score: %d | Classification: %s\n",
+               i + 1,
+               pq->items[i].threatName,
+               pq->items[i].riskScore,
+               pq->items[i].classification);
+    }
 }
 
 void swapThreats(ThreatData *a, ThreatData *b) {
@@ -34,75 +66,94 @@ void swapThreats(ThreatData *a, ThreatData *b) {
     *b = temp;
 }
 
-void initQueue(PriorityQueue *pq) {
-    pq->size = 0;
-}
+void heapify(MaxHeap *h, int i) {
+    int largest = i;
+    int left = 2 * i + 1;
+    int right = 2 * i + 2;
 
-void insert(PriorityQueue *pq, ThreatData threat) {
-    if (pq->size >= MAX) {
-        printf("Priority queue is full; cannot add %s.\\n", threat.threatName);
-        return;
+    if (left < h->size &&
+        higherPriority(h->heap[left], h->heap[largest])) {
+        largest = left;
     }
 
-    int i = pq->size++;
-    pq->heap[i] = threat;
+    if (right < h->size &&
+        higherPriority(h->heap[right], h->heap[largest])) {
+        largest = right;
+    }
+
+    if (largest != i) {
+        swapThreats(&h->heap[i], &h->heap[largest]);
+        heapify(h, largest);
+    }
+}
+
+void insertMaxHeap(MaxHeap *h, ThreatData threat) {
+    if (h->size >= MAX)
+        return;
+
+    int i = h->size;
+    h->heap[i] = threat;
+    h->size++;
 
     while (i > 0) {
         int parent = (i - 1) / 2;
-        if (higherPriority(pq->heap[i], pq->heap[parent])) {
-            swapThreats(&pq->heap[i], &pq->heap[parent]);
-            i = parent;
-        } else {
+
+        if (!higherPriority(h->heap[i], h->heap[parent]))
             break;
-        }
+
+        swapThreats(&h->heap[i], &h->heap[parent]);
+        i = parent;
     }
 }
 
-ThreatData extractMax(PriorityQueue *pq) {
-    ThreatData none = {"NONE", 0.0f, "NONE"};
-    if (pq->size == 0) return none;
-
-    ThreatData result = pq->heap[0];
-    pq->size--;
-
-    if (pq->size > 0) {
-        pq->heap[0] = pq->heap[pq->size];
-        int i = 0;
-
-        while (1) {
-            int left = 2 * i + 1;
-            int right = 2 * i + 2;
-            int highest = i;
-
-            if (left < pq->size &&
-                higherPriority(pq->heap[left], pq->heap[highest])) {
-                highest = left;
-            }
-            if (right < pq->size &&
-                higherPriority(pq->heap[right], pq->heap[highest])) {
-                highest = right;
-            }
-            if (highest == i) break;
-
-            swapThreats(&pq->heap[i], &pq->heap[highest]);
-            i = highest;
-        }
+void transferToMaxHeap(PriorityQueue *pq, MaxHeap *h) {
+    for (int i = 0; i < pq->size; i++) {
+        insertMaxHeap(h, pq->items[i]);
     }
-
-    return result;
 }
 
-void displayQueue(const PriorityQueue *pq) {
-    printf("\\n--- Threats in priority-queue heap order ---\\n");
-    if (pq->size == 0) {
-        printf("No threats in queue.\\n");
+void displayMaxHeap(MaxHeap *h) {
+    printf("\n========== MAX HEAP ==========\n");
+
+    if (h->size == 0) {
+        printf("No threats available.\n");
         return;
     }
 
-    for (int i = 0; i < pq->size; i++) {
-        printf("Threat: %-18s | Score: %5.2f | Classification: %s\\n",
-               pq->heap[i].threatName,
-               pq->heap[i].riskScore,
-               pq->heap[i].classification);
+    for (int i = 0; i < h->size; i++) {
+        printf("Index %d: %-25s Risk Score: %d | Classification: %s\n",
+               i,
+               h->heap[i].threatName,
+               h->heap[i].riskScore,
+               h->heap[i].classification);
     }
+
+    printf("\nHighest Priority Threat: %s\n",
+           h->heap[0].threatName);
+}
+
+void prioritiseThreats(ThreatData threats[], int count) {
+    PriorityQueue pq;
+    MaxHeap h;
+
+    initPriorityQueue(&pq);
+    initMaxHeap(&h);
+
+    if (threats == NULL || count <= 0) {
+        printf("\nNo threats available for prioritisation.\n");
+        return;
+    }
+
+    if (count > MAX)
+        count = MAX;
+
+    for (int i = 0; i < count; i++) {
+        insertPriorityQueue(&pq, threats[i]);
+    }
+
+    displayPriorityQueue(&pq);
+
+    transferToMaxHeap(&pq, &h);
+
+    displayMaxHeap(&h);
 }
